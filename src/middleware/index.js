@@ -16,6 +16,7 @@ const authService    = require('../services/auth.service');
 const respond        = require('../utils/respond');
 const AppError       = require('../utils/app.error');
 const logger         = require('../config/logger');
+const { logKeyEvent } = require('../crypto');
 
 // ─── 1. Request ID ─────────────────────────────────────────────────────────
 function requestId(req, res, next) {
@@ -42,10 +43,17 @@ function authenticate(req, res, next) {
   const token = authHeader.slice(7);
 
   try {
-    const payload    = authService.verifyAccessToken(token);
-    req.userId       = payload.sub;
-    req.userEmail    = payload.email;
-    next();
+    const payload = authService.verifyAccessToken(token);
+    req.userId = payload.sub;
+    req.userEmail = payload.email;
+    authService.loadRequestDEK(payload.sub, { requestId: req.requestId })
+      .then((dek) => {
+        req.encryptionKey = dek;
+        logKeyEvent('middleware_attached_dek', { requestId: req.requestId, userId: req.userId, ipAddress: req.ip });
+        next();
+      })
+      .catch(next);
+    return;
   } catch (err) {
     return respond.error(
       res,

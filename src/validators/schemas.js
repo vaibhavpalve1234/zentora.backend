@@ -19,6 +19,13 @@ const paginationSchema = {
 };
 
 // ─── Auth ──────────────────────────────────────────────────────────────────────
+const e2eeRegistrationSchema = Joi.object({
+  client_public_key: Joi.string().min(32).required(),
+  client_wrapped_dek: Joi.string().min(32).required(),
+  public_key_fingerprint: Joi.string().length(64).required(),
+  key_encryption_algorithm: Joi.string().max(50).default('x25519-xsalsa20-poly1305'),
+});
+
 const authSchemas = {
   register: Joi.object({
     email:     Joi.string().email().max(255).lowercase().required(),
@@ -26,6 +33,7 @@ const authSchemas = {
     full_name: Joi.string().min(2).max(100).required(),
     currency:  Joi.string().length(3).uppercase().default('INR'),
     timezone:  Joi.string().max(50).default('Asia/Kolkata'),
+    e2ee:      e2eeRegistrationSchema.optional(),
   }),
 
   login: Joi.object({
