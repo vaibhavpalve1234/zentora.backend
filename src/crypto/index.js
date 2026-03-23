@@ -7,7 +7,6 @@ const { encryptEntity, decryptEntity, FIELD_CONFIG } = require('./field.encrypto
 const { logKeyEvent } = require('./audit.logger');
 
 function validateCryptoEnv() {
-  if (!keyManager.hasServerSideEncryption()) return;
   keyManager.requireHex('ENCRYPTION_MASTER_KEY');
   keyManager.requireHex('BLIND_INDEX_SECRET');
 }

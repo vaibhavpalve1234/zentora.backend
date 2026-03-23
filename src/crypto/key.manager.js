@@ -15,10 +15,6 @@ function requireHex(name) {
   return Buffer.from(value, 'hex');
 }
 
-function hasServerSideEncryption() {
-  return Boolean(process.env.ENCRYPTION_MASTER_KEY && process.env.BLIND_INDEX_SECRET);
-}
-
 const masterKey = () => requireHex('ENCRYPTION_MASTER_KEY');
 
 function randomHex(bytes = 16) {
@@ -38,6 +34,7 @@ function wrapKey(rawKey, wrappingKey) {
   const cipher = crypto.createCipheriv('aes-256-gcm', wrappingKey, iv);
   const ciphertext = Buffer.concat([cipher.update(rawKey), cipher.final()]);
   const tag = cipher.getAuthTag();
+
   return [iv.toString('base64url'), tag.toString('base64url'), ciphertext.toString('base64url')].join('.');
 }
 
@@ -60,63 +57,40 @@ function buildUserKeyset(password) {
     dek,
     password_salt,
     dek_wrapped_by_password: wrapKey(dek, kek),
-    dek_wrapped_by_master: hasServerSideEncryption() ? wrapKey(dek, masterKey()) : null,
+    dek_wrapped_by_master: wrapKey(dek, masterKey()),
   };
 }
 
 async function storeUserKeyset(userId, keyset, { requestId } = {}) {
   await query(
     `INSERT INTO user_encryption_keys
-      (id, user_id, password_salt, dek_wrapped_by_password, dek_wrapped_by_master,
-       client_public_key, client_wrapped_dek, public_key_fingerprint, key_encryption_algorithm, key_version)
-     VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-    [
-      userId,
-      keyset.password_salt,
-      keyset.dek_wrapped_by_password,
-      keyset.dek_wrapped_by_master,
-      keyset.client_public_key || null,
-      keyset.client_wrapped_dek || null,
-      keyset.public_key_fingerprint || null,
-      keyset.key_encryption_algorithm || null,
-    ],
+      (id, user_id, password_salt, dek_wrapped_by_password, dek_wrapped_by_master, key_version)
+     VALUES (UUID(), ?, ?, ?, ?, 1)`,
+    [userId, keyset.password_salt, keyset.dek_wrapped_by_password, keyset.dek_wrapped_by_master],
     { requestId }
   );
 }
 
 async function getKeyRecord(userId, { requestId } = {}) {
-  const [row] = await query(`SELECT * FROM user_encryption_keys WHERE user_id = ? LIMIT 1`, [userId], { requestId });
+  const [row] = await query(
+    `SELECT * FROM user_encryption_keys WHERE user_id = ? LIMIT 1`,
+    [userId],
+    { requestId }
+  );
   return row || null;
-}
-
-function assertPasswordWrappedKey(row) {
-  if (!row?.password_salt || !row?.dek_wrapped_by_password) {
-    throw new Error('Password-wrapped DEK is not available for this user');
-  }
 }
 
 async function loadDEKWithPassword(userId, password, { requestId } = {}) {
   const row = await getKeyRecord(userId, { requestId });
   if (!row) throw new Error('User encryption key record not found');
-  assertPasswordWrappedKey(row);
   const kek = deriveKEK(password, row.password_salt);
   return unwrapKey(row.dek_wrapped_by_password, kek);
 }
 
 async function loadDEKWithMasterKey(userId, { requestId } = {}) {
   const row = await getKeyRecord(userId, { requestId });
-  if (!row?.dek_wrapped_by_master || !hasServerSideEncryption()) return null;
+  if (!row) throw new Error('User encryption key record not found');
   return unwrapKey(row.dek_wrapped_by_master, masterKey());
-}
-
-function extractClientE2EEPayload(dto) {
-  if (!dto?.e2ee) return null;
-  return {
-    client_public_key: dto.e2ee.client_public_key,
-    client_wrapped_dek: dto.e2ee.client_wrapped_dek,
-    public_key_fingerprint: dto.e2ee.public_key_fingerprint,
-    key_encryption_algorithm: dto.e2ee.key_encryption_algorithm,
-  };
 }
 
 module.exports = {
@@ -126,7 +100,5 @@ module.exports = {
   getKeyRecord,
   loadDEKWithPassword,
   loadDEKWithMasterKey,
-  extractClientE2EEPayload,
-  hasServerSideEncryption,
   requireHex,
 };

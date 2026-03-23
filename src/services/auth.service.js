@@ -29,39 +29,22 @@ class AuthService {
     const password_hash = await bcrypt.hash(password, Number(BCRYPT_ROUNDS));
     const userId = uuidv4();
     const keyset = keyManager.buildUserKeyset(password);
-    const clientE2EE = keyManager.extractClientE2EEPayload(dto);
 
-    if (clientE2EE) Object.assign(keyset, clientE2EE);
-
-    const encryptionEnabled = keyManager.hasServerSideEncryption();
-    const userPayload = {
+    const user = await userRepository.create(encryptEntity('users', {
       id: userId,
       email,
       password_hash,
       full_name,
       currency,
       timezone,
-    };
-
-    const user = await userRepository.create(
-      encryptionEnabled ? encryptEntity('users', userPayload, keyset.dek, BLIND_INDEX_SECRET) : userPayload,
-      { requestId }
-    );
+    }, keyset.dek, BLIND_INDEX_SECRET), { requestId });
     await keyManager.storeUserKeyset(userId, keyset, { requestId });
 
-    logKeyEvent(clientE2EE ? 'register_e2ee_client_wrapped' : 'register', { requestId, userId: user.id, ipAddress });
-    logger.info('User registered', { userId: user.id, email, requestId, ipAddress, clientManagedKeys: Boolean(clientE2EE) });
+    logKeyEvent('register', { requestId, userId: user.id, ipAddress });
+    logger.info('User registered', { userId: user.id, email, requestId, ipAddress });
 
     const tokens = await this._issueTokens(user, { requestId });
-    return {
-      user: this._sanitizeUser(encryptionEnabled ? decryptEntity('users', user, keyset.dek) : user),
-      e2ee: clientE2EE ? {
-        public_key_fingerprint: clientE2EE.public_key_fingerprint,
-        key_encryption_algorithm: clientE2EE.key_encryption_algorithm,
-        client_wrapped_dek: clientE2EE.client_wrapped_dek,
-      } : undefined,
-      ...tokens,
-    };
+    return { user: this._sanitizeUser(decryptEntity('users', user, keyset.dek)), dek: keyset.dek, ...tokens };
   }
 
   async login(email, password, { requestId, ipAddress } = {}) {
@@ -74,25 +57,14 @@ class AuthService {
       throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
-    const keyRecord = await keyManager.getKeyRecord(user.id, { requestId });
-    const dek = keyRecord?.dek_wrapped_by_password ? await keyManager.loadDEKWithPassword(user.id, password, { requestId }) : null;
+    const dek = await keyManager.loadDEKWithPassword(user.id, password, { requestId });
     await userRepository.updateLastLogin(user.id, { requestId });
 
-    const encryptionEnabled = keyManager.hasServerSideEncryption() && Boolean(dek);
-    logKeyEvent(keyRecord?.client_wrapped_dek ? 'login_e2ee_client_wrapped' : 'login', { requestId, userId: user.id, ipAddress });
-    logger.info('User logged in', { userId: user.id, requestId, ipAddress, clientManagedKeys: Boolean(keyRecord?.client_wrapped_dek) });
+    logKeyEvent('login', { requestId, userId: user.id, ipAddress });
+    logger.info('User logged in', { userId: user.id, requestId, ipAddress });
 
     const tokens = await this._issueTokens(user, { requestId });
-    return {
-      user: this._sanitizeUser(encryptionEnabled ? decryptEntity('users', user, dek) : user),
-      e2ee: keyRecord?.client_wrapped_dek ? {
-        client_wrapped_dek: keyRecord.client_wrapped_dek,
-        client_public_key: keyRecord.client_public_key,
-        public_key_fingerprint: keyRecord.public_key_fingerprint,
-        key_encryption_algorithm: keyRecord.key_encryption_algorithm,
-      } : undefined,
-      ...tokens,
-    };
+    return { user: this._sanitizeUser(decryptEntity('users', user, dek)), dek, ...tokens };
   }
 
   async refreshTokens(rawRefreshToken, { requestId } = {}) {
@@ -136,7 +108,7 @@ class AuthService {
 
   async loadRequestDEK(userId, { requestId } = {}) {
     const dek = await keyManager.loadDEKWithMasterKey(userId, { requestId });
-    if (dek) logKeyEvent('request_dek_loaded', { requestId, userId });
+    logKeyEvent('request_dek_loaded', { requestId, userId });
     return dek;
   }
 
