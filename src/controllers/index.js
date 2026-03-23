@@ -30,6 +30,7 @@ const AuthController = {
     try {
       const result = await authService.register(req.body, {
         requestId: req.requestId,
+        ipAddress: req.ip,
       });
 
       // Refresh token → HttpOnly cookie (never readable by JS on client)
@@ -52,6 +53,7 @@ const AuthController = {
       const { email, password } = req.body;
       const result = await authService.login(email, password, {
         requestId: req.requestId,
+        ipAddress: req.ip,
       });
 
       res.cookie('refreshToken', result.refreshToken, {
@@ -80,6 +82,7 @@ const AuthController = {
 
       const result = await authService.refreshTokens(rawToken, {
         requestId: req.requestId,
+        ipAddress: req.ip,
       });
 
       res.cookie('refreshToken', result.refreshToken, {
@@ -111,7 +114,7 @@ const TransactionController = {
   async create(req, res, next) {
     try {
       const txn = await transactionService.create(
-        req.userId, req.body, { requestId: req.requestId }
+        req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.created(res, txn);
     } catch (err) { next(err); }
@@ -120,7 +123,7 @@ const TransactionController = {
   async list(req, res, next) {
     try {
       const items = await transactionService.list(
-        req.userId, req.query, { requestId: req.requestId }
+        req.userId, req.query, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.paginated(res, items, {
         limit:  req.query.limit,
@@ -132,7 +135,7 @@ const TransactionController = {
   async getById(req, res, next) {
     try {
       const txn = await transactionService.getById(
-        req.params.id, req.userId, { requestId: req.requestId }
+        req.params.id, req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, txn);
     } catch (err) { next(err); }
@@ -141,7 +144,7 @@ const TransactionController = {
   async update(req, res, next) {
     try {
       const txn = await transactionService.update(
-        req.params.id, req.userId, req.body, { requestId: req.requestId }
+        req.params.id, req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.ok(res, txn);
     } catch (err) { next(err); }
@@ -150,7 +153,7 @@ const TransactionController = {
   async delete(req, res, next) {
     try {
       await transactionService.delete(
-        req.params.id, req.userId, { requestId: req.requestId }
+        req.params.id, req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.noContent(res);
     } catch (err) { next(err); }
@@ -161,6 +164,8 @@ const TransactionController = {
       const data = await transactionService.getAnalytics(req.userId, {
         ...req.query,
         requestId: req.requestId,
+        dek: req.encryptionKey,
+        ipAddress: req.ip,
       });
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -175,7 +180,7 @@ const InvestmentController = {
   async create(req, res, next) {
     try {
       const inv = await investmentService.create(
-        req.userId, req.body, { requestId: req.requestId }
+        req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.created(res, inv);
     } catch (err) { next(err); }
@@ -184,7 +189,7 @@ const InvestmentController = {
   async list(req, res, next) {
     try {
       const items = await investmentService.list(
-        req.userId, req.query, { requestId: req.requestId }
+        req.userId, req.query, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, items);
     } catch (err) { next(err); }
@@ -193,7 +198,7 @@ const InvestmentController = {
   async getById(req, res, next) {
     try {
       const inv = await investmentService.getById(
-        req.params.id, req.userId, { requestId: req.requestId }
+        req.params.id, req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, inv);
     } catch (err) { next(err); }
@@ -202,7 +207,7 @@ const InvestmentController = {
   async update(req, res, next) {
     try {
       const inv = await investmentService.update(
-        req.params.id, req.userId, req.body, { requestId: req.requestId }
+        req.params.id, req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.ok(res, inv);
     } catch (err) { next(err); }
@@ -211,7 +216,7 @@ const InvestmentController = {
   async delete(req, res, next) {
     try {
       await investmentService.delete(
-        req.params.id, req.userId, { requestId: req.requestId }
+        req.params.id, req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.noContent(res);
     } catch (err) { next(err); }
@@ -220,7 +225,7 @@ const InvestmentController = {
   async portfolio(req, res, next) {
     try {
       const data = await investmentService.getPortfolio(
-        req.userId, { requestId: req.requestId }
+        req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -235,7 +240,7 @@ const LoanController = {
   async create(req, res, next) {
     try {
       const loan = await loanService.create(
-        req.userId, req.body, { requestId: req.requestId }
+        req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.created(res, loan);
     } catch (err) { next(err); }
@@ -244,7 +249,7 @@ const LoanController = {
   async list(req, res, next) {
     try {
       const items = await loanService.list(
-        req.userId, req.query, { requestId: req.requestId }
+        req.userId, req.query, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, items);
     } catch (err) { next(err); }
@@ -253,7 +258,7 @@ const LoanController = {
   async getById(req, res, next) {
     try {
       const loan = await loanService.getById(
-        req.params.id, req.userId, { requestId: req.requestId }
+        req.params.id, req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, loan);
     } catch (err) { next(err); }
@@ -262,7 +267,7 @@ const LoanController = {
   async update(req, res, next) {
     try {
       const loan = await loanService.update(
-        req.params.id, req.userId, req.body, { requestId: req.requestId }
+        req.params.id, req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.ok(res, loan);
     } catch (err) { next(err); }
@@ -271,7 +276,7 @@ const LoanController = {
   async recordPayment(req, res, next) {
     try {
       const result = await loanService.recordPayment(
-        req.params.id, req.userId, req.body, { requestId: req.requestId }
+        req.params.id, req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.created(res, result);
     } catch (err) { next(err); }
@@ -280,7 +285,7 @@ const LoanController = {
   async dashboard(req, res, next) {
     try {
       const data = await loanService.getDashboard(
-        req.userId, { requestId: req.requestId }
+        req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -295,7 +300,7 @@ const BudgetController = {
   async create(req, res, next) {
     try {
       const budget = await budgetService.create(
-        req.userId, req.body, { requestId: req.requestId }
+        req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.created(res, budget);
     } catch (err) { next(err); }
@@ -304,7 +309,7 @@ const BudgetController = {
   async list(req, res, next) {
     try {
       const items = await budgetService.list(
-        req.userId, { requestId: req.requestId }
+        req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, items);
     } catch (err) { next(err); }
@@ -313,7 +318,7 @@ const BudgetController = {
   async update(req, res, next) {
     try {
       const budget = await budgetService.update(
-        req.params.id, req.userId, req.body, { requestId: req.requestId }
+        req.params.id, req.userId, req.body, { requestId: req.requestId, dek: req.encryptionKey, ipAddress: req.ip }
       );
       respond.ok(res, budget);
     } catch (err) { next(err); }
@@ -322,7 +327,7 @@ const BudgetController = {
   async delete(req, res, next) {
     try {
       await budgetService.delete(
-        req.params.id, req.userId, { requestId: req.requestId }
+        req.params.id, req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.noContent(res);
     } catch (err) { next(err); }
@@ -341,7 +346,7 @@ const AIController = {
         req.userId,
         year  ? Number(year)  : undefined,
         month ? Number(month) : undefined,
-        { requestId: req.requestId }
+        { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -350,7 +355,7 @@ const AIController = {
   async detectAnomalies(req, res, next) {
     try {
       const data = await insightService.detectAnomalies(
-        req.userId, { requestId: req.requestId }
+        req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -359,7 +364,7 @@ const AIController = {
   async investmentAdvice(req, res, next) {
     try {
       const data = await insightService.getInvestmentAdvice(
-        req.userId, { requestId: req.requestId }
+        req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -368,7 +373,7 @@ const AIController = {
   async savingsTips(req, res, next) {
     try {
       const data = await insightService.getSavingsTips(
-        req.userId, { requestId: req.requestId }
+        req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -377,7 +382,7 @@ const AIController = {
   async loanAdvice(req, res, next) {
     try {
       const data = await insightService.getLoanAdvice(
-        req.userId, { requestId: req.requestId }
+        req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -387,7 +392,7 @@ const AIController = {
     try {
       const { question } = req.body;
       const data = await insightService.askCustom(
-        req.userId, question, { requestId: req.requestId }
+        req.userId, question, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.ok(res, data);
     } catch (err) { next(err); }
@@ -400,6 +405,7 @@ const AIController = {
         unreadOnly:  req.query.unread === 'true',
         limit:       Number(req.query.limit) || 10,
         requestId:   req.requestId,
+        dek:         req.encryptionKey,
       });
       respond.ok(res, items);
     } catch (err) { next(err); }
@@ -408,7 +414,7 @@ const AIController = {
   async markRead(req, res, next) {
     try {
       await insightService.markRead(
-        req.params.id, req.userId, { requestId: req.requestId }
+        req.params.id, req.userId, { requestId: req.requestId, dek: req.encryptionKey }
       );
       respond.noContent(res);
     } catch (err) { next(err); }
