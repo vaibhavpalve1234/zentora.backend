@@ -1,0 +1,40 @@
+{
+  "name": "money-control-pro",
+  "version": "1.0.0",
+  "description": "AI-powered personal finance OS — Node.js + MySQL + Gemini + ChromaDB",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "db:migrate": "node database/migrate.js",
+    "lint": "eslint src/**/*.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.45.0",
+    "bcryptjs": "^2.4.3",
+    "chromadb": "^1.10.0",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.3.1",
+    "express-validator": "^7.1.0",
+    "helmet": "^7.1.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "mysql2": "^3.10.1",
+    "redis": "^4.6.15",
+    "uuid": "^10.0.0",
+    "winston": "^3.13.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.8.0",
+    "nodemon": "^3.1.4"
+  }
+}

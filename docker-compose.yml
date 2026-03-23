@@ -1,0 +1,113 @@
+version: '3.9'
+
+services:
+
+  # ─── MySQL 8 ──────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: mcp_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE:      money_control_pro
+      MYSQL_USER:          mcp_user
+      MYSQL_PASSWORD:      mcp_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO
+      --innodb-buffer-pool-size=256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis 7 ──────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: mcp_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── ChromaDB ─────────────────────────────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: mcp_chromadb
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      IS_PERSISTENT:        "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── API Server ───────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp_api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV:            production
+      PORT:                3000
+      DB_HOST:             mysql
+      DB_PORT:             3306
+      DB_NAME:             money_control_pro
+      DB_USER:             mcp_user
+      DB_PASSWORD:         mcp_password
+      REDIS_HOST:          redis
+      REDIS_PORT:          6379
+      CHROMA_HOST:         chromadb
+      CHROMA_PORT:         8000
+      GEMINI_API_KEY:      ${GEMINI_API_KEY}
+      JWT_ACCESS_SECRET:   ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET:  ${JWT_REFRESH_SECRET}
+      LOG_LEVEL:           info
+      LOG_DIR:             /app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+  redis_data:
+  chroma_data:
