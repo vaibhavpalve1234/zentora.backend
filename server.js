@@ -23,6 +23,7 @@ const createApp        = require('./src/app');
 const { testConnection, closePool } = require('./src/config/database');
 const redis            = require('./src/config/redis');
 const logger           = require('./src/config/logger');
+const { validateCryptoEnv } = require('./src/crypto');
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -30,6 +31,8 @@ let server;
 
 async function start() {
   try {
+    validateCryptoEnv();
+
     // 1. Database
     await testConnection();
 

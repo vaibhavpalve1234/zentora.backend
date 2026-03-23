@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     id            CHAR(36)     NOT NULL DEFAULT (UUID()),
     email         VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    full_name     VARCHAR(100) NOT NULL,
+    full_name     TEXT         NOT NULL,
     currency      CHAR(3)      NOT NULL DEFAULT 'INR',
     timezone      VARCHAR(50)  NOT NULL DEFAULT 'Asia/Kolkata',
     is_active     TINYINT(1)   NOT NULL DEFAULT 1,
@@ -28,6 +28,25 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- ────────────────────────────────────────────────
 -- 2. REFRESH TOKENS  (JWT rotation)
+-- ────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS user_encryption_keys (
+    id                      CHAR(36)     NOT NULL DEFAULT (UUID()),
+    user_id                 CHAR(36)     NOT NULL,
+    password_salt           CHAR(32)     NOT NULL,
+    dek_wrapped_by_password TEXT         NOT NULL,
+    dek_wrapped_by_master   TEXT         NOT NULL,
+    key_version             INT          NOT NULL DEFAULT 1,
+    created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_uek_user  (user_id),
+    CONSTRAINT fk_uek_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ────────────────────────────────────────────────
+-- 2b. REFRESH TOKENS  (JWT rotation)
 -- ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id         CHAR(36)     NOT NULL DEFAULT (UUID()),
@@ -71,12 +90,12 @@ CREATE TABLE IF NOT EXISTS transactions (
     type           ENUM('income','expense') NOT NULL,
     amount         DECIMAL(15,2)  NOT NULL,
     currency       CHAR(3)        NOT NULL DEFAULT 'INR',
-    description    VARCHAR(500)       NULL,
-    tags           JSON               NULL,     -- ["food","dining"]
+    description    TEXT               NULL,
+    tags           TEXT               NULL,
     transaction_date DATE           NOT NULL,
-    payment_method ENUM('cash','upi','card','bank_transfer','other') NOT NULL DEFAULT 'upi',
+    payment_method TEXT               NULL,
     is_recurring   TINYINT(1)     NOT NULL DEFAULT 0,
-    recurrence_rule VARCHAR(100)       NULL,   -- RRULE string
+    recurrence_rule TEXT               NULL,
     created_at     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -99,7 +118,7 @@ CREATE TABLE IF NOT EXISTS budgets (
     id          CHAR(36)      NOT NULL DEFAULT (UUID()),
     user_id     CHAR(36)      NOT NULL,
     category_id CHAR(36)          NULL,
-    name        VARCHAR(100)  NOT NULL,
+    name        TEXT          NOT NULL,
     amount      DECIMAL(15,2) NOT NULL,
     period      ENUM('daily','weekly','monthly','yearly') NOT NULL DEFAULT 'monthly',
     start_date  DATE          NOT NULL,
@@ -125,8 +144,8 @@ CREATE TABLE IF NOT EXISTS investments (
     id                 CHAR(36)       NOT NULL DEFAULT (UUID()),
     user_id            CHAR(36)       NOT NULL,
     type               ENUM('sip','lump_sum','stocks','gold','fd','nps','ppf','crypto','other') NOT NULL,
-    name               VARCHAR(200)   NOT NULL,
-    symbol             VARCHAR(50)        NULL,   -- stock/fund ticker
+    name               TEXT           NOT NULL,
+    symbol             TEXT               NULL,
     invested_amount    DECIMAL(15,2)  NOT NULL DEFAULT 0,
     current_value      DECIMAL(15,2)  NOT NULL DEFAULT 0,
     units              DECIMAL(20,6)      NULL,
@@ -137,7 +156,7 @@ CREATE TABLE IF NOT EXISTS investments (
     sip_frequency      ENUM('daily','weekly','monthly','quarterly') NULL,
     status             ENUM('active','paused','redeemed','matured') NOT NULL DEFAULT 'active',
     notes              TEXT               NULL,
-    meta               JSON               NULL,   -- platform-specific data
+    meta               TEXT               NULL,
     created_at         DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at         DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -179,15 +198,16 @@ CREATE TABLE IF NOT EXISTS loans (
     id               CHAR(36)       NOT NULL DEFAULT (UUID()),
     user_id          CHAR(36)       NOT NULL,
     direction        ENUM('borrowed','lent') NOT NULL,
-    party_name       VARCHAR(200)   NOT NULL,  -- person/bank name
-    party_contact    VARCHAR(20)        NULL,
+    party_name       TEXT           NOT NULL,
+    party_name_bi    CHAR(64)           NULL,
+    party_contact    TEXT               NULL,
     principal        DECIMAL(15,2)  NOT NULL,
     interest_rate    DECIMAL(5,2)   NOT NULL DEFAULT 0,
     interest_type    ENUM('simple','compound','none') NOT NULL DEFAULT 'none',
     outstanding      DECIMAL(15,2)  NOT NULL,
     start_date       DATE           NOT NULL,
     due_date         DATE               NULL,
-    purpose          VARCHAR(500)       NULL,
+    purpose          TEXT               NULL,
     status           ENUM('active','partially_paid','paid','written_off') NOT NULL DEFAULT 'active',
     reminder_days    TINYINT            NULL,   -- days before due to remind
     notes            TEXT               NULL,
@@ -197,6 +217,7 @@ CREATE TABLE IF NOT EXISTS loans (
     PRIMARY KEY (id),
     INDEX idx_loan_user_dir    (user_id, direction, status),
     INDEX idx_loan_due         (user_id, due_date),
+    INDEX idx_loan_party_bi    (user_id, party_name_bi),
     CONSTRAINT fk_loan_user    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT chk_loan_princ  CHECK (principal    > 0),
     CONSTRAINT chk_loan_out    CHECK (outstanding >= 0)
@@ -232,8 +253,8 @@ CREATE TABLE IF NOT EXISTS ai_insights (
     user_id       CHAR(36)      NOT NULL,
     insight_type  ENUM('monthly_summary','spending_alert','investment_advice',
                        'loan_reminder','savings_tip','anomaly','custom') NOT NULL,
-    title         VARCHAR(255)  NOT NULL,
-    content       TEXT          NOT NULL,
+    title         TEXT          NOT NULL,
+    content       LONGTEXT      NOT NULL,
     context_hash  CHAR(64)      NOT NULL,   -- SHA-256 of context used (dedup)
     prompt_tokens INT               NULL,
     model_used    VARCHAR(100)  NOT NULL DEFAULT 'gemini-2.5-flash',
